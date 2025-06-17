@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Arca de Noé: O Dilúvio</title>
     <style>
         body {
@@ -19,11 +19,15 @@
             text-shadow: 2px 2px 4px #000000;
             overflow: hidden;
         }
+        #game-container {
+            position: relative;
+        }
         canvas {
             background-color: #4a6a8a; /* Céu mais escuro/acinzentado */
             border: 5px solid #8B4513;
             border-radius: 10px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            display: block;
         }
         #info-container {
             margin-top: 15px;
@@ -34,6 +38,29 @@
         }
         h1, p {
             margin: 5px 0;
+        }
+        #splash-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            flex-direction: column;
+            cursor: pointer;
+            transition: opacity 1s;
+        }
+        #splash-screen h2 {
+            font-size: 2.5em;
+            text-align: center;
+        }
+         #splash-screen p {
+            font-size: 1.2em;
+            margin-top: 20px;
         }
         #restartButton {
             display: none;
@@ -50,35 +77,91 @@
             cursor: pointer;
             box-shadow: 0 5px 15px rgba(0,0,0,0.4);
             transition: background-color 0.3s, transform 0.1s;
+            z-index: 20;
         }
-        #restartButton:hover {
-            background-color: #e74c3c;
+        #restartButton:hover { background-color: #e74c3c; }
+        #restartButton:active { transform: translate(-50%, -50%) scale(0.95); }
+
+        /* Controles Mobile */
+        #mobile-controls {
+            display: none; /* Escondido por padrão */
+            position: fixed;
+            bottom: 20px;
+            width: 100%;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 50;
         }
-        #restartButton:active {
-            transform: translate(-50%, -50%) scale(0.95);
+        .controls-group {
+            display: flex;
+            gap: 15px;
+        }
+        .mobile-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: rgba(0,0,0,0.4);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+        /* Mostra controles em telas pequenas */
+        @media (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+            #info-container p {
+                font-size: 0.8em;
+            }
         }
     </style>
 </head>
 <body>
     <h1>Arca de Noé: O Dilúvio</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="splash-screen">
+            <div>
+                <h2>Uma criação de<br>Doutor Marcelo Brendon</h2>
+                <p>(O jogo começará em breve...)</p>
+            </div>
+        </div>
+        <button id="restartButton">Jogar Novamente</button>
+    </div>
     <div id="info-container">
-        <p><strong>SETA PARA CIMA</strong> para pular das feras, <strong>SETA PARA BAIXO</strong> para submergir dos raios.</p>
+        <p><strong>SETA PARA CIMA / A</strong> para pular, <strong>SETA PARA BAIXO / B</strong> para submergir.</p>
         <p>Use as <strong>SETAS LATERAIS</strong> para mover a arca. Sobreviva por 40 dias!</p>
     </div>
-    <button id="restartButton">Jogar Novamente</button>
+    <div id="mobile-controls">
+        <div class="controls-group">
+            <div id="btn-left" class="mobile-btn">&#9664;</div>
+            <div id="btn-right" class="mobile-btn">&#9654;</div>
+        </div>
+        <div class="controls-group">
+            <div id="btn-b" class="mobile-btn">B</div>
+            <div id="btn-a" class="mobile-btn">A</div>
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const restartButton = document.getElementById('restartButton');
+        const splashScreen = document.getElementById('splash-screen');
 
         function resizeCanvas() {
             const aspectRatio = 800 / 600;
             let newWidth = window.innerWidth * 0.95;
             let newHeight = newWidth / aspectRatio;
-            if (newHeight > window.innerHeight * 0.7) {
-                newHeight = window.innerHeight * 0.7;
+            if (newHeight > window.innerHeight * 0.6) {
+                newHeight = window.innerHeight * 0.6;
                 newWidth = newHeight * aspectRatio;
             }
             canvas.style.width = `${newWidth}px`;
@@ -116,19 +199,36 @@
             }
         }
 
+        // --- CONTROLES ---
         document.addEventListener('keydown', (e) => {
             if (!gameActive) return;
             if (e.code === 'ArrowRight') keys.right = true;
             if (e.code === 'ArrowLeft') keys.left = true;
-            if (e.code === 'ArrowUp' && !ark.isJumping && !ark.isSubmerged) { ark.dy = ark.jumpPower; ark.isJumping = true; }
+            if (e.code === 'ArrowUp') keys.up = true; // Ação de pular movida para o loop
             if (e.code === 'ArrowDown') keys.down = true;
         });
         document.addEventListener('keyup', (e) => {
             if (e.code === 'ArrowRight') keys.right = false;
             if (e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'ArrowUp') keys.up = false;
             if (e.code === 'ArrowDown') keys.down = false;
         });
         restartButton.addEventListener('click', initGame);
+
+        // Controles Mobile
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnA = document.getElementById('btn-a');
+        const btnB = document.getElementById('btn-b');
+
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left = true; });
+        btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys.left = false; });
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right = true; });
+        btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys.right = false; });
+        btnA.addEventListener('touchstart', (e) => { e.preventDefault(); keys.up = true; });
+        btnA.addEventListener('touchend', (e) => { e.preventDefault(); keys.up = false; });
+        btnB.addEventListener('touchstart', (e) => { e.preventDefault(); keys.down = true; });
+        btnB.addEventListener('touchend', (e) => { e.preventDefault(); keys.down = false; });
 
         // --- FUNÇÕES DE DESENHO ---
         function drawArk() { ctx.save(); const arkY = ark.isSubmerged ? ark.y + ark.submergeDepth : ark.y; ctx.fillStyle = '#8B4513'; ctx.beginPath(); ctx.moveTo(ark.x, arkY); ctx.lineTo(ark.x + ark.width, arkY); ctx.lineTo(ark.x + ark.width - 20, arkY + ark.height); ctx.lineTo(ark.x + 20, arkY + ark.height); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#D2B48C'; ctx.fillRect(ark.x + 20, arkY - 30, ark.width - 40, 30); ctx.fillStyle = '#A0522D'; ctx.beginPath(); ctx.moveTo(ark.x + 15, arkY - 30); ctx.lineTo(ark.x + ark.width - 15, arkY - 30); ctx.lineTo(ark.x + ark.width / 2, arkY - 45); ctx.closePath(); ctx.fill(); if(ark.isSubmerged){ ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.font = '20px Arial'; ctx.fillText('...', ark.x + ark.width/2 - 10, arkY); } ctx.restore(); }
@@ -141,7 +241,21 @@
         function drawScore() { ctx.fillStyle = 'white'; ctx.font = '24px "Courier New"'; ctx.textAlign = 'left'; ctx.fillText(`Dia: ${Math.floor(score / 60)} / ${VICTORY_DAY}`, 20, 40); }
 
         // --- ATUALIZAÇÕES E LÓGICA ---
-        function updateArk() { ark.isSubmerged = keys.down && !ark.isJumping; if (keys.right) ark.x += ark.speed; if (keys.left) ark.x -= ark.speed; if (!ark.isSubmerged || ark.y < waterLevel) { ark.dy += GRAVITY; } ark.y += ark.dy; if (ark.x < 0) ark.x = 0; if (ark.x + ark.width > canvas.width) ark.x = canvas.width - ark.width; if (ark.y > waterLevel && !ark.isSubmerged) { ark.y = waterLevel; ark.dy = 0; ark.isJumping = false; } }
+        function updateArk() {
+            // Lógica de pulo
+            if (keys.up && !ark.isJumping && !ark.isSubmerged) {
+                ark.dy = ark.jumpPower;
+                ark.isJumping = true;
+            }
+            ark.isSubmerged = keys.down && !ark.isJumping;
+            if (keys.right) ark.x += ark.speed;
+            if (keys.left) ark.x -= ark.speed;
+            if (!ark.isSubmerged || ark.y < waterLevel) { ark.dy += GRAVITY; }
+            ark.y += ark.dy;
+            if (ark.x < 0) ark.x = 0;
+            if (ark.x + ark.width > canvas.width) ark.x = canvas.width - ark.width;
+            if (ark.y > waterLevel && !ark.isSubmerged) { ark.y = waterLevel; ark.dy = 0; ark.isJumping = false; }
+        }
         function updateRain() { rain.forEach(drop => { drop.y += drop.speed; if (drop.y > canvas.height) { drop.y = -drop.length; drop.x = Math.random() * canvas.width; } }); }
         function spawnEnemies() { const monsterSpawnRate = Math.max(70, 150 - score / 100); const lightningSpawnRate = Math.max(90, 180 - score / 100); if (animationFrame % Math.floor(monsterSpawnRate) === 0) { const radius = 25; const fromLeft = Math.random() < 0.5; seaMonsters.push({ x: fromLeft ? -radius : canvas.width + radius, y: waterLevel + 30, radius: radius, dx: (fromLeft ? 1 : -1) * (2 + score / 800) }); } if (animationFrame % Math.floor(lightningSpawnRate) === 0) { lightnings.push({ x: Math.random() * canvas.width * 0.8 + canvas.width * 0.1, y: 40 + Math.random() * 50, timer: Math.max(50, 120 - score / 80), duration: 10 }); } }
         function updateEnemies() { seaMonsters.forEach(m => m.x += m.dx); seaMonsters = seaMonsters.filter(m => m.x > -m.radius && m.x < canvas.width + m.radius); lightnings.forEach(l => { if (l.timer > 0) l.timer--; else l.duration--; }); lightnings = lightnings.filter(l => l.duration > 0 || l.timer > 0); }
@@ -149,39 +263,16 @@
         
         function gameOver() { gameActive = false; restartButton.style.display = 'block'; }
         
-        // --- SEQUÊNCIA DE VITÓRIA ---
         function handleVictory() {
-            if (victorySequence.stage === 'start') {
-                seaMonsters = []; lightnings = [];
-                victorySequence.stage = 'rain_stopping';
-            }
-            if (victorySequence.stage === 'rain_stopping') {
-                if (rain.length > 0) rain.length -= 2;
-                else victorySequence.stage = 'water_receding';
-            }
-            if (victorySequence.stage === 'water_receding') {
-                const mountainPeakY = canvas.height - 250;
-                const arkFinalY = mountainPeakY - ark.height + 5;
-                if (waterLevel < canvas.height - 150) waterLevel += 0.5;
-                if(ark.y < arkFinalY) ark.y = waterLevel;
-                else { ark.y = arkFinalY; victorySequence.stage = 'landed'; }
-            }
-            if (victorySequence.stage === 'landed') {
-                victorySequence.timer++;
-            }
-            // Desenho da cena de vitória
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updateRain(); drawRain();
-            drawMountain();
-            drawWater();
-            drawArk();
+            if (victorySequence.stage === 'start') { seaMonsters = []; lightnings = []; victorySequence.stage = 'rain_stopping'; }
+            if (victorySequence.stage === 'rain_stopping') { if (rain.length > 0) rain.length -= 2; else victorySequence.stage = 'water_receding'; }
+            if (victorySequence.stage === 'water_receding') { const mountainPeakY = canvas.height - 250; const arkFinalY = mountainPeakY - ark.height + 5; if (waterLevel < canvas.height - 150) waterLevel += 0.5; if(ark.y < arkFinalY) ark.y = waterLevel; else { ark.y = arkFinalY; victorySequence.stage = 'landed'; } }
+            if (victorySequence.stage === 'landed') { victorySequence.timer++; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height); updateRain(); drawRain(); drawMountain(); drawWater(); drawArk();
             if (victorySequence.stage === 'landed') {
                 drawRainbow(Math.min(1, victorySequence.timer / 120));
                 if (victorySequence.timer > 120) {
-                    ctx.fillStyle = 'white';
-                    ctx.font = '40px "Courier New"';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('O dilúvio passou e você venceu!', canvas.width / 2, 150);
+                    ctx.fillStyle = 'white'; ctx.font = '40px "Courier New"'; ctx.textAlign = 'center'; ctx.fillText('O dilúvio passou e você venceu!', canvas.width / 2, 150);
                     restartButton.style.display = 'block';
                 }
             }
@@ -214,7 +305,15 @@
             requestAnimationFrame(gameLoop);
         }
         
-        initGame();
+        // Inicia o jogo após a intro
+        setTimeout(() => {
+            splashScreen.style.opacity = '0';
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                initGame();
+            }, 1000); // Espera a transição de opacidade terminar
+        }, 3000); // Tempo da tela de intro
+
     </script>
 </body>
 </html>
